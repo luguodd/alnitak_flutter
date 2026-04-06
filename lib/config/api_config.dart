@@ -9,36 +9,51 @@ class ApiConfig {
   static const String _hostOverrideKey = 'api_host_override';
   static const String _portOverrideKey = 'api_port_override';
 
-  /// 默认服务器域名（可被 override 覆盖）
-  static const String defaultHost = 'anime.ayypd.cn';
+  /// 默认服务器域名（已改为你的公网 IP）
+  static const String defaultHost = '43.255.120.226';
+  
+  /// 官方 Docker 默认后端端口
   static const int defaultPortHttp = 9000;
-  static const int defaultPortHttps = 9001;
-  static const String defaultShareHost = 'anime.ayypd.cn';
-  static const int defaultSharePort = 3000;
+  
+  /// 除非你配置了 Nginx SSL 证书，否则此端口在 Docker 默认部署中不可用
+  static const int defaultPortHttps = 9001; 
 
-  static bool _httpsEnabled = true;
+  /// 分享域名（通常指向你的前端 9010 端口或域名）
+  static const String defaultShareHost = '43.255.120.226';
+  static const int defaultSharePort = 9010; 
+
+  // --- 修改重点：默认初始状态设为 false，以匹配 Docker 默认的 HTTP 环境 ---
+  static bool _httpsEnabled = false; 
+  
   static String? _hostOverride;
   static int? _portOverride;
 
   /// 当前生效的服务器域名
   static String get host => _hostOverride ?? defaultHost;
-  /// 当前生效的 API 端口（HTTPS 9001，HTTP 9000）
+  
+  /// 当前生效的 API 端口
   static int get port => _portOverride ?? (_httpsEnabled ? defaultPortHttps : defaultPortHttp);
+  
   static String get shareHost => defaultShareHost;
+  static String get sharePortStr => (sharePort == 80 || sharePort == 443) ? '' : ':$sharePort';
   static int get sharePort => defaultSharePort;
 
   static bool get httpsEnabled => _httpsEnabled;
 
   static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
-    _httpsEnabled = prefs.getBool(_httpsEnabledKey) ?? true;
+    
+    // --- 修改重点：?? 后面的默认值必须改为 false ---
+    // 这样当用户第一次打开 APP 时，会默认走 http://IP:9000
+    _httpsEnabled = prefs.getBool(_httpsEnabledKey) ?? false;
+    
     final savedHost = prefs.getString(_hostOverrideKey);
     _hostOverride = (savedHost != null && savedHost.isNotEmpty) ? savedHost : null;
     final savedPort = prefs.getInt(_portOverrideKey);
     _portOverride = (savedPort != null && savedPort > 0) ? savedPort : null;
   }
 
-  /// 设置 API 主机/端口覆盖（空字符串或 0 表示恢复默认）
+  /// 设置 API 主机/端口覆盖
   static Future<void> setHostPortOverride({String? host, int? port}) async {
     final prefs = await SharedPreferences.getInstance();
     if (host != null) {
@@ -69,30 +84,12 @@ class ApiConfig {
   /// 获取当前使用的协议
   static String get _protocol => _httpsEnabled ? 'https' : 'http';
 
-  /// API 基础地址
-  static String get baseUrl {
-    return '$_protocol://$host:$port';
-  }
+  static String get baseUrl => '$_protocol://$host:$port';
+  static String get httpsBaseUrl => 'https://$host:$port';
+  static String get httpBaseUrl => 'http://$host:$port';
+  static String get webUrl => '$_protocol://$host';
 
-  /// HTTPS 基础地址
-  static String get httpsBaseUrl {
-    return 'https://$host:$port';
-  }
-
-  /// HTTP 基础地址
-  static String get httpBaseUrl {
-    return 'http://$host:$port';
-  }
-
-  /// Web 地址（用于分享等场景）
-  static String get webUrl {
-    return '$_protocol://$host';
-  }
-
-  /// 分享地址（HTTPS 启用时自动用 https 前缀）
-  /// 80/443 端口不带端口，其他端口带端口
   static String getShareUrl(String path) {
-    final portStr = sharePort == 80 || sharePort == 443 ? '' : ':$sharePort';
-    return '$_protocol://$shareHost$portStr/$path';
+    return '$_protocol://$shareHost$sharePortStr/$path';
   }
 }
