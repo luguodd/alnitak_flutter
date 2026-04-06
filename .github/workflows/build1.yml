@@ -1,0 +1,46 @@
+name: Alnitak_Flutter_Build
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17' # 维持 17 即可，重点在下面的内存设置
+          
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      # --- 关键修复：增加 Gradle 和 Java 编译内存 ---
+      - name: Setup Gradle Memory
+        run: |
+          mkdir -p ~/.gradle
+          echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8" >> ~/.gradle/gradle.properties
+          echo "android.useAndroidX=true" >> ~/.gradle/gradle.properties
+          echo "android.enableJetifier=true" >> ~/.gradle/gradle.properties
+      
+      - name: Get dependencies
+        run: flutter pub get
+        
+      - name: Build APK
+        # 设置环境变量，给编译器更多呼吸空间
+        env:
+          _JAVA_OPTIONS: "-Xmx4g"
+        run: flutter build apk --release --no-tree-shake-icons
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Alnitak-Release-App
+          path: build/app/outputs/flutter-apk/app-release.apk
